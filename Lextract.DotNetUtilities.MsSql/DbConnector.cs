@@ -6,90 +6,130 @@ using System.Reflection;
 
 namespace Lextract.DotNetUtilities.MsSql
 {
-    public class DbConnector : IDisposable
+    /// <summary>
+    /// Base class for connect to MsSql server and execute T-SQL statements and 
+    /// return raw data and/or mapped objects.
+    /// </summary>
+    public abstract class DbConnector : IDisposable
     {
         public SqlConnection Conexion { get; private set; }
         public SqlCommand Comando { get; private set; }
+
+        /// <summary>
+        /// Creates a new instance based on SqlConnection object
+        /// </summary>
+        /// <param name="connection">Instance of SqlConnection</param>
         public DbConnector(SqlConnection connection)
         {
-            this.Conexion = connection;
+            Conexion = connection;
         }
 
+        /// <summary>
+        /// Creates a new instance based on a string, 
+        /// valid strings can queried in https://www.connectionstrings.com/sql-server/
+        /// </summary>
+        /// <param name="connection">Connection string</param>
         public DbConnector(string connectionString)
         {
             Conexion = new SqlConnection(connectionString);
         }
 
+        /// <summary>
+        /// Sets procedure name to be executed on connection established
+        /// </summary>
+        /// <param name="procedureName">Procedure name (with schema name are always preferable)</param>
         public void SetProcedure(string procedureName)
         {
-            // TODO: Implementar validacion que el nombre no tenga espacios en blanco
+            // TODO: Implementar validacion que el nombre no tenga espacios en blanco, expresion regular ANSI tsql
             Comando = new SqlCommand(procedureName, Conexion);
             Comando.CommandType = CommandType.StoredProcedure;
         }
 
+        /// <summary>
+        /// Sets script text to be executed on connection established
+        /// </summary>
+        /// <param name="commandText">T-SQL script statements</param>
         public void SetCommand(string commandText)
         {
             Comando = new SqlCommand(commandText, Conexion);
             Comando.CommandType = CommandType.Text;
         }
 
-        public void AddParameter(string parameter)
-        {
-            Comando.Parameters.Add(parameter, SqlDbType.Variant);
-        }
-
-        public void AddParameter(string parameter, SqlDbType dbType)
-        {
-            Comando.Parameters.Add(parameter, dbType);
-        }
-
+        /// <summary>
+        /// Creates a parameter inside procedure assigned
+        /// </summary>
+        /// <param name="parameter">Instance of SqlParameter</param>
         public void AddParameter(SqlParameter parameter)
         {
             Comando.Parameters.Add(parameter);
         }
 
-        public void AddParameterValue(string parameter, object value)
-        {
+        /// <summary>
+        /// Creates or gets a parameter inside procedure established and assigns the value
+        /// </summary>
+        /// <param name="parameter">Parameter name</param>
+        /// <param name="value">Value of parameter</param>
+        /// <param name="dbType">Sql database type</param>
+        public void AddParameterValue(string parameter, object value, SqlDbType dbType = SqlDbType.Variant)
+        {            
+            SqlParameter param;
             if (Comando.Parameters.Contains(parameter))
-                Comando.Parameters[parameter].Value = value;
-            else Comando.Parameters.AddWithValue(parameter, value);
+                param = Comando.Parameters[parameter];
+            else param = new SqlParameter(parameter, dbType);
+            param.Value = value;
         }
 
+        /// <summary>
+        /// Executes a Transact-SQL statement against the connection and returns the number 
+        /// of rows affected.
+        /// </summary>
+        /// <returns>The number of rows affected.</returns>
         public int ExecuteNonQuery()
         {
             int retorno = 0;
-            AbrirConexion();
+            OpenConnection();
             retorno = Comando.ExecuteNonQuery();
             return retorno;
         }
 
+        /// <summary>
+        /// Executes the query, and returns the first column of the first row in the result 
+        /// set returned by the query. Additional columns or rows are ignored.
+        /// </summary>
+        /// <returns>The first column of the first row in the result set, or a null reference (Nothing 
+        /// in Visual Basic) if the result set is empty. Returns a maximum of 2033 characters.</returns>
         public object ExecuteScalar()
         {
-            AbrirConexion();
+            OpenConnection();
             object retorno = Comando.ExecuteScalar();
             return retorno;
         }
 
+        /// <summary>
+        /// Executes procedure or script previously assigned and loads raw data on a table
+        /// </summary>
+        /// <returns>A set of results</returns>
         public DataTable ExecuteReaderRaw()
         {
-            AbrirConexion();
+            OpenConnection();
             DataTable tabla = new DataTable();
             using (SqlDataReader reader = Comando.ExecuteReader())
                 tabla.Load(reader);
-
-            CerrarConexion();
+            CloseConnection();
             return tabla;
         }
 
-
+        /// <summary>
+        /// Executes reader data set
+        /// </summary>
+        /// <returns>Data set</returns>
         public DataSet ExecuteReaderDataSet()
         {
-            AbrirConexion();
+            OpenConnection();
             DataSet dataSet = new DataSet();
             SqlDataAdapter da = new SqlDataAdapter(Comando);
             da.Fill(dataSet);
-            //dataSet.Load(reader);
-            CerrarConexion();
+            CloseConnection();
             return dataSet;
         }
 
@@ -121,10 +161,15 @@ namespace Lextract.DotNetUtilities.MsSql
             return retorno;
         }
 
+        /// <summary>
+        /// Executes procedure or script previously assigned and maps each record to a object of type T
+        /// </summary>
+        /// <typeparam name="T">Type on which wants mapped</typeparam>
+        /// <returns>List of objects of type T</returns>
         public List<T> ExecuteReaderMapping<T>()
         {
             List<T> retorno = new List<T>();
-            AbrirConexion();
+            OpenConnection();
             using (SqlDataReader reader = Comando.ExecuteReader())
             {
                 Dictionary<string, int> columnasIndice = new Dictionary<string, int>();
@@ -150,32 +195,40 @@ namespace Lextract.DotNetUtilities.MsSql
                 }
             }
 
-            CerrarConexion();
+            CloseConnection();
             return retorno;
         }
 
+        /// <summary>
+        /// Executes procedure or script previously assigned and maps first column to a type T
+        /// </summary>
+        /// <typeparam name="T">Type on which wants mapped</typeparam>
+        /// <returns>List of objects of type T</returns>
         public List<T> ExecuteReaderToType<T>()
         {
             List<T> retorno = new List<T>();
-            AbrirConexion();
-
+            OpenConnection();
             using (SqlDataReader reader = Comando.ExecuteReader())
             {
                 Type typeT = typeof(T);
-
                 while (reader.Read())
                 {
                     T valor = (T)Convert.ChangeType(reader[0].ToString(), typeT);
                     retorno.Add(valor);
                 }
             }
-            CerrarConexion();
+            CloseConnection();
             return retorno;
         }
 
+        /// <summary>
+        /// Executes procedure or script previously assigned and maps first record to a object of type T
+        /// </summary>
+        /// <typeparam name="T">Type on which wants mapped</typeparam>
+        /// <returns>Object of type T</returns>
         public T ExecuteReaderMappingFirst<T>()
         {
-            AbrirConexion();
+            OpenConnection();
             using (SqlDataReader reader = Comando.ExecuteReader())
             {
                 Dictionary<string, int> columnasIndice = new Dictionary<string, int>();
@@ -205,30 +258,41 @@ namespace Lextract.DotNetUtilities.MsSql
                 }
                 if (!atLeastOne)
                     retorno = default(T);
-                CerrarConexion();
+                CloseConnection();
                 return retorno;
             }
 
         }
 
+        /// <summary>
+        /// Executes a bulk copy on a target table
+        /// </summary>
+        /// <param name="sourceTable">Source data</param>
+        /// <param name="targetTable">Target table</param>
         public void BulkCopy(DataTable sourceTable, string targetTable)
         {
-            AbrirConexion();
+            OpenConnection();
             using (SqlBulkCopy bulkCopy = new SqlBulkCopy(Conexion))
             {
                 bulkCopy.DestinationTableName = targetTable;
                 bulkCopy.WriteToServer(sourceTable);
             }
-            CerrarConexion();
+            CloseConnection();
         }
 
-        protected void AbrirConexion()
+        /// <summary>
+        /// Opens connection
+        /// </summary>
+        protected void OpenConnection()
         {
             if (Conexion.State != ConnectionState.Open)
                 Conexion.Open();
         }
 
-        protected void CerrarConexion()
+        /// <summary>
+        /// Closes connection
+        /// </summary>
+        protected void CloseConnection()
         {
             if (Conexion.State != ConnectionState.Open)
                 Conexion.Close();
