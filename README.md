@@ -1,5 +1,5 @@
 # DotNet Utilities MsSql
-Basic utilities for connect to MsSql Server and performs CRUD operations oriented to using objects.
+Utilities for connect and perform CRUD operations over Microsoft SQL server, this library is an adapter to process results and map them to objects if you want it.
 
 ### Abstract
 This library exposes functionalities to work over a Microsoft Sql Server connection, allows you to execute typical CRUD operations and perform processes over results to use them like an objects, similar to an ORM.

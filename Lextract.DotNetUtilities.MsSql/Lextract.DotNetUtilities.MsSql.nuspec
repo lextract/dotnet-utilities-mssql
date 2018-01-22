@@ -4,11 +4,11 @@
     <id>Lextract.DotNetUtilities.MsSql</id>
     <version>1.0.0</version>
     <title>Lextract.DotNetUtilities.MsSql</title>
-    <authors>John A. Antonio R.</authors>
+    <authors>lextract</authors>
     <owners>lextract</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <description>Basic utilities for connect to MsSql Server and performs CRUD operations oriented to using objects</description>
-    <releaseNotes>Basic utilities for connect to MsSql Server and performs CRUD operations oriented to using objects</releaseNotes>
+    <description>Utilities for connect and perform CRUD operations over Microsoft SQL server, this library is an adapter to process results and map them to objects if you want it.</description>
+    <projectUrl>https://github.com/lextract/dotnet-utilities-mssql</projectUrl>
     <copyright>Copyright 2018</copyright>
     <tags>mssql sql utilities</tags>
   </metadata>
