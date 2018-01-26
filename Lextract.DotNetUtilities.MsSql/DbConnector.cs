@@ -12,8 +12,15 @@ namespace Lextract.DotNetUtilities.MsSql
     /// </summary>
     public abstract class DbConnector : IDisposable
     {
-        public SqlConnection Conexion { get; private set; }
-        public SqlCommand Comando { get; private set; }
+        /// <summary>
+        /// Connection
+        /// </summary>
+        public SqlConnection Connection { get; private set; }
+
+        /// <summary>
+        /// Command
+        /// </summary>
+        public SqlCommand Command { get; private set; }
 
         /// <summary>
         /// Creates a new instance based on SqlConnection object
@@ -21,17 +28,17 @@ namespace Lextract.DotNetUtilities.MsSql
         /// <param name="connection">Instance of SqlConnection</param>
         public DbConnector(SqlConnection connection)
         {
-            Conexion = connection;
+            Connection = connection;
         }
 
         /// <summary>
         /// Creates a new instance based on a string, 
         /// valid strings can queried in https://www.connectionstrings.com/sql-server/
         /// </summary>
-        /// <param name="connection">Connection string</param>
+        /// <param name="connectionString">Connection string</param>
         public DbConnector(string connectionString)
         {
-            Conexion = new SqlConnection(connectionString);
+            Connection = new SqlConnection(connectionString);
         }
 
         /// <summary>
@@ -40,9 +47,10 @@ namespace Lextract.DotNetUtilities.MsSql
         /// <param name="procedureName">Procedure name (with schema name are always preferable)</param>
         public void SetProcedure(string procedureName)
         {
-            // TODO: Implementar validacion que el nombre no tenga espacios en blanco, expresion regular ANSI tsql
-            Comando = new SqlCommand(procedureName, Conexion);
-            Comando.CommandType = CommandType.StoredProcedure;
+            if (Command != null)
+                Command.Dispose();
+            Command = new SqlCommand(procedureName, Connection);
+            Command.CommandType = CommandType.StoredProcedure;
         }
 
         /// <summary>
@@ -51,8 +59,10 @@ namespace Lextract.DotNetUtilities.MsSql
         /// <param name="commandText">T-SQL script statements</param>
         public void SetCommand(string commandText)
         {
-            Comando = new SqlCommand(commandText, Conexion);
-            Comando.CommandType = CommandType.Text;
+            if (Command != null)
+                Command.Dispose();
+            Command = new SqlCommand(commandText, Connection);
+            Command.CommandType = CommandType.Text;
         }
 
         /// <summary>
@@ -61,7 +71,7 @@ namespace Lextract.DotNetUtilities.MsSql
         /// <param name="parameter">Instance of SqlParameter</param>
         public void AddParameter(SqlParameter parameter)
         {
-            Comando.Parameters.Add(parameter);
+            Command.Parameters.Add(parameter);
         }
 
         /// <summary>
@@ -73,9 +83,13 @@ namespace Lextract.DotNetUtilities.MsSql
         public void AddParameterValue(string parameter, object value, SqlDbType dbType = SqlDbType.Variant)
         {            
             SqlParameter param;
-            if (Comando.Parameters.Contains(parameter))
-                param = Comando.Parameters[parameter];
-            else param = new SqlParameter(parameter, dbType);
+            if (Command.Parameters.Contains(parameter))
+                param = Command.Parameters[parameter];
+            else
+            {
+                param = new SqlParameter(parameter, dbType);
+                Command.Parameters.Add(param);
+            }
             param.Value = value;
         }
 
@@ -88,7 +102,7 @@ namespace Lextract.DotNetUtilities.MsSql
         {
             int retorno = 0;
             OpenConnection();
-            retorno = Comando.ExecuteNonQuery();
+            retorno = Command.ExecuteNonQuery();
             return retorno;
         }
 
@@ -101,7 +115,7 @@ namespace Lextract.DotNetUtilities.MsSql
         public object ExecuteScalar()
         {
             OpenConnection();
-            object retorno = Comando.ExecuteScalar();
+            object retorno = Command.ExecuteScalar();
             return retorno;
         }
 
@@ -113,7 +127,7 @@ namespace Lextract.DotNetUtilities.MsSql
         {
             OpenConnection();
             DataTable tabla = new DataTable();
-            using (SqlDataReader reader = Comando.ExecuteReader())
+            using (SqlDataReader reader = Command.ExecuteReader())
                 tabla.Load(reader);
             CloseConnection();
             return tabla;
@@ -127,7 +141,7 @@ namespace Lextract.DotNetUtilities.MsSql
         {
             OpenConnection();
             DataSet dataSet = new DataSet();
-            SqlDataAdapter da = new SqlDataAdapter(Comando);
+            SqlDataAdapter da = new SqlDataAdapter(Command);
             da.Fill(dataSet);
             CloseConnection();
             return dataSet;
@@ -170,7 +184,7 @@ namespace Lextract.DotNetUtilities.MsSql
         {
             List<T> retorno = new List<T>();
             OpenConnection();
-            using (SqlDataReader reader = Comando.ExecuteReader())
+            using (SqlDataReader reader = Command.ExecuteReader())
             {
                 Dictionary<string, int> columnasIndice = new Dictionary<string, int>();
                 int indice = 0;
@@ -208,7 +222,7 @@ namespace Lextract.DotNetUtilities.MsSql
         {
             List<T> retorno = new List<T>();
             OpenConnection();
-            using (SqlDataReader reader = Comando.ExecuteReader())
+            using (SqlDataReader reader = Command.ExecuteReader())
             {
                 Type typeT = typeof(T);
                 while (reader.Read())
@@ -229,7 +243,7 @@ namespace Lextract.DotNetUtilities.MsSql
         public T ExecuteReaderMappingFirst<T>()
         {
             OpenConnection();
-            using (SqlDataReader reader = Comando.ExecuteReader())
+            using (SqlDataReader reader = Command.ExecuteReader())
             {
                 Dictionary<string, int> columnasIndice = new Dictionary<string, int>();
                 int indice = 0;
@@ -272,7 +286,7 @@ namespace Lextract.DotNetUtilities.MsSql
         public void BulkCopy(DataTable sourceTable, string targetTable)
         {
             OpenConnection();
-            using (SqlBulkCopy bulkCopy = new SqlBulkCopy(Conexion))
+            using (SqlBulkCopy bulkCopy = new SqlBulkCopy(Connection))
             {
                 bulkCopy.DestinationTableName = targetTable;
                 bulkCopy.WriteToServer(sourceTable);
@@ -285,8 +299,8 @@ namespace Lextract.DotNetUtilities.MsSql
         /// </summary>
         protected void OpenConnection()
         {
-            if (Conexion.State != ConnectionState.Open)
-                Conexion.Open();
+            if (Connection.State != ConnectionState.Open)
+                Connection.Open();
         }
 
         /// <summary>
@@ -294,13 +308,16 @@ namespace Lextract.DotNetUtilities.MsSql
         /// </summary>
         protected void CloseConnection()
         {
-            if (Conexion.State != ConnectionState.Open)
-                Conexion.Close();
+            if (Connection.State == ConnectionState.Open)
+                Connection.Close();
         }
 
+        /// <summary>
+        /// Releases resources, closes connection
+        /// </summary>
         public void Dispose()
         {
-            Conexion.Close();
+            Connection.Close();
         }
     }
 }
